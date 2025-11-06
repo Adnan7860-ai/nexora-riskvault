@@ -86,18 +86,26 @@ else:
     st.warning("Please upload a CSV or use demo data to proceed.")
     st.stop()
 
-df["timestamp"] = pd.to_datetime(df["timestamp"])
+# ✅ Verify essential columns exist
+required_cols = {"timestamp", "source_ip", "event_type"}
+missing = required_cols - set(df.columns)
+if missing:
+    st.error(f"❌ Missing required columns in uploaded data: {', '.join(missing)}")
+    st.stop()
+
+df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+df = df.dropna(subset=["timestamp"])
 df = df.sort_values("timestamp")
 
 # ------------------------------
 # 🧮 RISK CALCULATION
 # ------------------------------
 def risk_factors(event):
-    if "failed" in event:
+    if "fail" in str(event).lower():
         return 8, 5, detectability
-    elif "conn" in event:
+    elif "conn" in str(event).lower():
         return 8, 5, detectability
-    elif "process" in event:
+    elif "process" in str(event).lower():
         return 9, 3, detectability
     else:
         return 2, 3, detectability
@@ -124,6 +132,7 @@ if page == "Dashboard":
     col3.metric("Unique Sources", unique_sources)
     col4.metric("Average RPN", avg_rpn)
 
+    # 🔧 Aggregate AMDEC summary
     amdec_summary = (
         df.groupby("event_type")
         .agg({
@@ -138,6 +147,14 @@ if page == "Dashboard":
         .reset_index()
     )
 
+    # ✅ FIX: Add Risk_Level back to summary
+    amdec_summary["Risk_Level"] = pd.cut(
+        amdec_summary["RPN"],
+        bins=[0, 100, critical_rpn, np.inf],
+        labels=["Low", "Moderate", "Critical"]
+    )
+
+    # 📊 Charts
     st.subheader("📊 Risk Distribution by Event Type")
     fig1 = px.bar(
         amdec_summary,
@@ -164,6 +181,7 @@ if page == "Dashboard":
     risk_filter = st.multiselect("Select Risk Levels", options=df["Risk_Level"].unique(), default=list(df["Risk_Level"].unique()))
     st.dataframe(df[df["Risk_Level"].isin(risk_filter)], use_container_width=True)
 
+    # 💾 Export
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
         df.to_excel(writer, sheet_name="Logs", index=False)
