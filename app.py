@@ -7,10 +7,10 @@ from io import BytesIO
 from datetime import datetime
 
 # ------------------------------
-# 🎨 PAGE CONFIGURATION
+# ⚙️ PAGE CONFIGURATION
 # ------------------------------
 st.set_page_config(
-    page_title="Nexora RiskVault – SOC Risk Management",
+    page_title="Nexora RiskVault – SOC Risk Dashboard",
     layout="wide",
     page_icon="🛡️"
 )
@@ -27,18 +27,9 @@ st.markdown("""
         .stApp {
             background-color: #0E1117;
         }
-        .css-18e3th9 {
-            padding-top: 1rem;
-        }
         .stSidebar {
             background-color: #111827;
             color: #E0E0E0;
-        }
-        .st-bw {
-            background-color: #1F2937;
-        }
-        .css-1v0mbdj {
-            color: #9CA3AF;
         }
         .stButton>button {
             background-color: #2563EB;
@@ -54,26 +45,22 @@ st.markdown("""
             height: 3em;
             font-weight: 600;
         }
+        h1, h2, h3 {
+            color: #60A5FA;
+        }
     </style>
 """, unsafe_allow_html=True)
 
 # ------------------------------
-# 🧠 SIDEBAR WITH BRANDING
+# 🧠 SIDEBAR CONTROLS
 # ------------------------------
-st.sidebar.image("assets/nexora_logo.png", width=180)
 st.sidebar.title("🧩 Nexora RiskVault Controls")
 
-# ------------------------------
-# PAGE NAVIGATION
-# ------------------------------
 page = st.sidebar.radio(
     "📄 Select Page",
     ["Dashboard", "Attack Intelligence", "Database View", "About"],
 )
 
-# ------------------------------
-# FILE UPLOAD & SETTINGS
-# ------------------------------
 st.sidebar.subheader("📁 Data Source")
 uploaded_file = st.sidebar.file_uploader("Upload SOC Log CSV", type=["csv"])
 use_demo = st.sidebar.checkbox("Use demo data (if no upload)", value=True)
@@ -87,7 +74,7 @@ brute_window = st.sidebar.number_input("Brute-force window (sec)", 10, 300, 60)
 brute_attempts = st.sidebar.number_input("Brute-force attempts threshold", 2, 10, 3)
 
 # ------------------------------
-# LOAD DATA
+# 🧾 LOAD DATA
 # ------------------------------
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
@@ -103,7 +90,7 @@ df["timestamp"] = pd.to_datetime(df["timestamp"])
 df = df.sort_values("timestamp")
 
 # ------------------------------
-# RISK CALCULATIONS
+# 🧮 RISK CALCULATION
 # ------------------------------
 def risk_factors(event):
     if "failed" in event:
@@ -120,11 +107,11 @@ df["RPN"] = df["Severity"] * df["Probability"] * df["Detectability"]
 df["Risk_Level"] = pd.cut(df["RPN"], bins=[0, 100, critical_rpn, np.inf], labels=["Low", "Moderate", "Critical"])
 
 # ------------------------------
-# PAGE 1: DASHBOARD
+# 📊 PAGE 1: DASHBOARD
 # ------------------------------
 if page == "Dashboard":
     st.title("🛡️ Nexora RiskVault – SOC Risk Management Dashboard")
-    st.caption("Powered by Nexora Technologies © 2025 | AMDEC + Threat Intelligence")
+    st.caption("AMDEC + Attack Detection | Nexora Technologies © 2025")
 
     total_events = len(df)
     critical_events = len(df[df["RPN"] > critical_rpn])
@@ -151,7 +138,7 @@ if page == "Dashboard":
         .reset_index()
     )
 
-    st.subheader("📊 Risk Distribution")
+    st.subheader("📊 Risk Distribution by Event Type")
     fig1 = px.bar(
         amdec_summary,
         x="RPN", y="event_type",
@@ -161,6 +148,7 @@ if page == "Dashboard":
     )
     st.plotly_chart(fig1, use_container_width=True)
 
+    st.subheader("🎯 Risk Composition")
     fig2 = px.pie(
         amdec_summary,
         names="Risk_Level",
@@ -176,7 +164,6 @@ if page == "Dashboard":
     risk_filter = st.multiselect("Select Risk Levels", options=df["Risk_Level"].unique(), default=list(df["Risk_Level"].unique()))
     st.dataframe(df[df["Risk_Level"].isin(risk_filter)], use_container_width=True)
 
-    # Export Button
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
         df.to_excel(writer, sheet_name="Logs", index=False)
@@ -184,11 +171,11 @@ if page == "Dashboard":
     st.download_button("📥 Download Excel Report", data=buffer.getvalue(), file_name="nexora_riskvault_report.xlsx")
 
 # ------------------------------
-# PAGE 2: ATTACK INTELLIGENCE
+# 📈 PAGE 2: ATTACK INTELLIGENCE
 # ------------------------------
 elif page == "Attack Intelligence":
     st.title("🧠 Threat & Attack Intelligence")
-    st.caption("Live brute-force and anomaly detection view")
+    st.caption("Live brute-force and anomaly detection")
 
     df["is_failed"] = df["event_type"].str.contains("fail", case=False)
     df["timestamp_diff"] = df["timestamp"].diff().dt.total_seconds().fillna(9999)
@@ -200,7 +187,7 @@ elif page == "Attack Intelligence":
             suspicious_ips.append(ip)
 
     if suspicious_ips:
-        st.warning(f"⚠️ Brute-force Detected: {', '.join(suspicious_ips)}")
+        st.warning(f"⚠️ Brute-force activity detected from: {', '.join(suspicious_ips)}")
     else:
         st.success("✅ No brute-force activity detected.")
 
@@ -208,10 +195,11 @@ elif page == "Attack Intelligence":
     st.dataframe(df[df["is_failed"]].sort_values("timestamp", ascending=False), use_container_width=True)
 
 # ------------------------------
-# PAGE 3: DATABASE LOGGING
+# 🗄️ PAGE 3: DATABASE VIEW
 # ------------------------------
 elif page == "Database View":
     st.title("🗄️ RiskVault Database Integration")
+
     conn = sqlite3.connect("riskvault.db")
     df.to_sql("logs", conn, if_exists="append", index=False)
     st.success("✅ Logs saved to SQLite (riskvault.db)")
@@ -222,22 +210,21 @@ elif page == "Database View":
     conn.close()
 
 # ------------------------------
-# PAGE 4: ABOUT
+# ℹ️ PAGE 4: ABOUT
 # ------------------------------
 else:
     st.title("ℹ️ About Nexora RiskVault")
     st.markdown("""
-    **Nexora RiskVault** is a real-time risk intelligence system  
-    combining **AMDEC (FMEA)** + **Threat Analytics** to detect, score, and prioritize cyber incidents.
+    **Nexora RiskVault** provides a low-cost, intelligent SOC dashboard  
+    for monitoring, analyzing, and mitigating cybersecurity risks.
 
-    **Key Features:**
-    - 🔍 Upload & analyze real SOC logs (CSV)
-    - ⚙️ AMDEC-based RPN scoring
-    - 🧠 Brute-force & telnet attack detection
-    - 📊 Visual dashboards (RPN charts, Risk Mix)
-    - 🗄️ SQLite database integration
-    - 🖤 Dark, modern SOC UI
+    **Features:**
+    - AMDEC-based RPN scoring
+    - Real-time attack intelligence
+    - Visualization of risks and event trends
+    - SQLite database integration
+    - Excel report export
 
-    **Developed by:** *Nexora Technologies (2025)*  
+    **Developed by:** Nexora Technologies (2025)  
     **Lead Risk Analyst:** Adnan7860-ai
     """)
